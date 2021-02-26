@@ -1,0 +1,7 @@
+-c requirements.txt
+black
+build
+isort
+mypy
+pylint
+twine

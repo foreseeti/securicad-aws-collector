@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile = "black"
+py_version = "38"
+
+[tool.black]
+target-version = ["py38"]
+
+[tool.pylint.messages_control]
+# C0330, C0326: https://black.readthedocs.io/en/stable/compatible_configs.html#pylint
+# W1203: logging-fstring-interpolation
+disable = "C0330, C0326, W1203"
+
+[tool.pylint.format]
+max-line-length = "88"
+good-names = "e, f, n"
