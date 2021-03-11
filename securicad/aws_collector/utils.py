@@ -16,7 +16,6 @@ import concurrent.futures
 import json
 import logging
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
@@ -171,7 +170,6 @@ def get_fake_paginate(
 def execute_tasks(
     tasks: List[Callable[[], Tuple[List[str], Any]]],
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> Optional[Dict[str, Any]]:
     output: Dict[str, Any] = {}
@@ -179,8 +177,6 @@ def execute_tasks(
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         future_to_name = {executor.submit(task): task.__name__ for task in tasks}
         for future in concurrent.futures.as_completed(future_to_name):
-            if delay:
-                time.sleep(delay)
             try:
                 names, result = future.result()
 
