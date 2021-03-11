@@ -36,7 +36,6 @@ def collect(
     region_data: Dict[str, Any],
     include_inspector: bool,
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> None:
     session = Session(
@@ -45,9 +44,7 @@ def collect(
         region_name=region_data["region_name"],
     )
     region_data.update(
-        get_region_data(
-            session, include_inspector, threads, delay, raise_on_access_denied
-        )
+        get_region_data(session, include_inspector, threads, raise_on_access_denied)
     )
 
 
@@ -55,7 +52,6 @@ def get_region_data(
     session: Session,
     include_inspector: bool,
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> Dict[str, Any]:
     client_lock: Lock = Lock()
@@ -694,7 +690,7 @@ def get_region_data(
 
     add_task(apigateway_get_usage_plans, "apigateway")
 
-    region_data = utils.execute_tasks(tasks, threads, delay, raise_on_access_denied)
+    region_data = utils.execute_tasks(tasks, threads, raise_on_access_denied)
     if region_data is None:
         raise RuntimeError("utils.execute_tasks returned None")
     return region_data

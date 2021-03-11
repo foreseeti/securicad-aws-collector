@@ -30,7 +30,6 @@ log = logging.getLogger("securicad-aws-collector")
 def get_account_data(
     account: Dict[str, Any],
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> Optional[Dict[str, Any]]:
     session = Session(
@@ -59,7 +58,7 @@ def get_account_data(
 
     tasks.append(iam_list_account_aliases)
 
-    return utils.execute_tasks(tasks, threads, delay, raise_on_access_denied)
+    return utils.execute_tasks(tasks, threads, raise_on_access_denied)
 
 
 def collect(
@@ -67,16 +66,13 @@ def collect(
     account_data: Dict[str, Any],
     include_inspector: bool,
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> None:
     session = Session(
         aws_access_key_id=account["access_key"],
         aws_secret_access_key=account["secret_key"],
     )
-    account_data["global"] = get_global_data(
-        session, threads, delay, raise_on_access_denied
-    )
+    account_data["global"] = get_global_data(session, threads, raise_on_access_denied)
     account_data["regions"] = []
     region_names = set()
     for region in account["regions"]:
@@ -89,12 +85,7 @@ def collect(
         log.info(f'Collecting AWS environment information of region "{region}"')
         region_data = {"region_name": region}
         region_collector.collect(
-            account,
-            region_data,
-            include_inspector,
-            threads,
-            delay,
-            raise_on_access_denied,
+            account, region_data, include_inspector, threads, raise_on_access_denied
         )
         account_data["regions"].append(region_data)
         region_names.add(region)
@@ -105,7 +96,6 @@ def collect(
 def get_global_data(
     session: Session,
     threads: Optional[int],
-    delay: Optional[float],
     raise_on_access_denied: bool,
 ) -> Dict[str, Any]:
     client_lock: Lock = Lock()
@@ -395,7 +385,7 @@ def get_global_data(
 
     tasks.append(s3api_list_buckets)
 
-    global_data = utils.execute_tasks(tasks, threads, delay, raise_on_access_denied)
+    global_data = utils.execute_tasks(tasks, threads, raise_on_access_denied)
     if global_data is None:
         raise RuntimeError("utils.execute_tasks returned None")
     return global_data

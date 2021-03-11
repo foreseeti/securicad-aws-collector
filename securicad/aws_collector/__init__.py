@@ -45,7 +45,6 @@ def collect(
     config: Dict[str, Any],
     include_inspector: bool = False,
     threads: Optional[int] = None,
-    delay: Optional[float] = None,
     raise_on_access_denied: bool = False,
 ) -> Dict[str, Any]:
 
@@ -61,7 +60,7 @@ def collect(
     account_ids = set()
     for account in config["accounts"]:
         account_data = account_collector.get_account_data(
-            account, threads, delay, raise_on_access_denied
+            account, threads, raise_on_access_denied
         )
         if account_data is None:
             continue
@@ -80,7 +79,6 @@ def collect(
             account_data,
             include_inspector,
             threads,
-            delay,
             raise_on_access_denied,
         )
         data["accounts"].append(account_data)
@@ -207,13 +205,6 @@ def main(
         metavar="THREADS",
         help="Number of concurrent threads",
     ),
-    delay: Optional[float] = typer.Option(
-        None,
-        "--delay",
-        "-d",
-        metavar="DELAY",
-        help="Seconds of delay before a new API call",
-    ),
     output: Path = typer.Option(
         Path("aws.json"),
         "--output",
@@ -263,7 +254,6 @@ def main(
             config=config_data,
             include_inspector=inspector,
             threads=threads,
-            delay=delay,
         )
         utils.write_json(output_data, output)
         if str(output) != "-":
