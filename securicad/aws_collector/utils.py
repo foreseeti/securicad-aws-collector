@@ -26,7 +26,7 @@ from botocore.client import BaseClient  # type: ignore
 from botocore.config import Config  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
-from securicad.aws_collector.exceptions import AwsAccessError, AwsCollectorIOError
+from securicad.aws_collector.exceptions import AwsCollectorIOError
 
 if TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -168,9 +168,7 @@ def get_fake_paginate(
 
 
 def execute_tasks(
-    tasks: List[Callable[[], Tuple[List[str], Any]]],
-    threads: Optional[int],
-    raise_on_access_denied: bool,
+    tasks: List[Callable[[], Tuple[List[str], Any]]], threads: Optional[int]
 ) -> Optional[Dict[str, Any]]:
     output: Dict[str, Any] = {}
     threads = len(tasks) if threads is None else threads
@@ -199,8 +197,6 @@ def execute_tasks(
                     "UnauthorizedOperation",
                     "AccessDeniedException",
                 }:
-                    if raise_on_access_denied:
-                        raise AwsAccessError(f"{name}: {message}") from e
                     log.warning(f"{name}: {message}")
                     continue
                 raise
