@@ -16,4 +16,4 @@ disable = "C0330, C0326, W1203"
 
 [tool.pylint.format]
 max-line-length = "88"
-good-names = "e, f, n"
+good-names = "e, f, n, i"

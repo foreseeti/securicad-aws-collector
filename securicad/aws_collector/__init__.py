@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
+import inspect
 import json
 import logging
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from threading import Lock
+from typing import Any, Callable, Dict, Optional
 
+import botocore.client  # type: ignore
 import jsonschema  # type: ignore
 import typer
 from boto3.session import Session  # type: ignore
@@ -40,16 +44,99 @@ PARSER_VERSION_FIELD = "parser_version"
 log = logging.getLogger("securicad-aws-collector")
 app = typer.Typer()
 
+_OLD_METHOD = None
+
+
+def _patch_botocore(
+    limit_per_second: Optional[float] = None, total_limit: Optional[int] = None
+) -> None:
+    def _api_call(self, *args, **kwargs):
+        # pylint: disable=global-variable-undefined
+        # pylint: disable=undefined-variable
+        # pylint: disable=used-before-assignment
+        # pylint: disable=protected-access
+        global TOTAL_CALLS
+
+        if args:
+            raise TypeError(f"{py_operation_name}() only accepts keyword arguments.")
+
+        with LOCK:
+            if TOTAL_LIMIT:
+                if TOTAL_CALLS >= TOTAL_LIMIT:
+                    raise AwsRateLimitError("Maximum number of API calls exceeded")
+            TOTAL_CALLS += 1
+            if DELAY:
+                time.sleep(DELAY)
+                return self._make_api_call(operation_name, kwargs)
+        return self._make_api_call(operation_name, kwargs)
+
+    def _get_ast(obj: Callable) -> ast.Module:
+        lines = inspect.getsource(obj).splitlines()
+        indent = len(lines[0]) - len(lines[0].lstrip())
+        return ast.parse("\n".join(line[indent:] for line in lines))
+
+    # pylint: disable=global-statement
+    global _OLD_METHOD
+    if _OLD_METHOD is None:
+        # pylint: disable=protected-access
+        # pylint: disable=exec-used
+        _OLD_METHOD = botocore.client.ClientCreator._create_api_method
+        outer_func_ast = _get_ast(botocore.client.ClientCreator._create_api_method)
+        inner_func_ast = _get_ast(_api_call)
+
+        assert len(outer_func_ast.body) == 1
+        assert isinstance(outer_func_ast.body[0], ast.FunctionDef)
+        assert outer_func_ast.body[0].name == "_create_api_method"
+
+        for i, node in enumerate(outer_func_ast.body[0].body):
+            if isinstance(node, ast.FunctionDef) and node.name == "_api_call":
+                outer_func_ast.body[0].body[i] = inner_func_ast.body[0]
+                break
+        else:
+            raise RuntimeError("Inner function _api_call not found")
+
+        lines = [
+            "import time",
+            "from botocore.docs.docstring import ClientMethodDocstring",
+            "from securicad.aws_collector.exceptions import AwsRateLimitError",
+        ]
+        for line in reversed(lines):
+            outer_func_ast.body[0].body.insert(0, ast.parse(line).body[0])
+
+        _globals: Dict[str, Any] = {
+            "LOCK": Lock(),
+            "DELAY": 1 / limit_per_second if limit_per_second else None,
+            "TOTAL_CALLS": 0,
+            "TOTAL_LIMIT": total_limit,
+        }
+        _locals: Dict[str, Any] = {}
+        exec(compile(outer_func_ast, "<string>", "exec"), _globals, _locals)
+        botocore.client.ClientCreator._create_api_method = _locals["_create_api_method"]
+
+
+def _unpatch_botocore():
+    # pylint: disable=global-statement
+    global _OLD_METHOD
+    if _OLD_METHOD is not None:
+        # pylint: disable=protected-access
+        botocore.client.ClientCreator._create_api_method = _OLD_METHOD
+        _OLD_METHOD = None
+
 
 def collect(
     config: Dict[str, Any],
     include_inspector: bool = False,
     threads: Optional[int] = None,
+    limit_per_second: Optional[float] = None,
+    total_limit: Optional[int] = None,
 ) -> Dict[str, Any]:
     try:
         jsonschema.validate(instance=config, schema=schemas.get_config_schema())
     except ValidationError as e:
         raise AwsCollectorInputError(f"Invalid config file: {e.message}") from e
+
+    if limit_per_second or total_limit:
+        _patch_botocore(limit_per_second, total_limit)
 
     data: Dict[str, Any] = {
         PARSER_VERSION_FIELD: PARSER_VERSION,
@@ -76,6 +163,8 @@ def collect(
     if not data["accounts"]:
         raise AwsCredentialsError("No valid AWS credentials found")
     log.info("Finished collecting AWS environment information")
+
+    _unpatch_botocore()
 
     try:
         jsonschema.validate(instance=data, schema=schemas.get_data_schema())
@@ -195,6 +284,18 @@ def main(
         metavar="THREADS",
         help="Number of concurrent threads",
     ),
+    limit_per_second: Optional[float] = typer.Option(
+        None,
+        "--limit-per-second",
+        metavar="LIMIT",
+        help="Maximum number of API calls per second",
+    ),
+    total_limit: Optional[int] = typer.Option(
+        None,
+        "--total-limit",
+        metavar="LIMIT",
+        help="Maximum number of API calls",
+    ),
     output: Path = typer.Option(
         Path("aws.json"),
         "--output",
@@ -241,7 +342,11 @@ def main(
         init_logging(quiet, verbose)
         config_data = get_config_data(profile, access_key, secret_key, region, config)
         output_data = collect(
-            config=config_data, include_inspector=inspector, threads=threads
+            config=config_data,
+            include_inspector=inspector,
+            threads=threads,
+            limit_per_second=limit_per_second,
+            total_limit=total_limit,
         )
         utils.write_json(output_data, output)
         if str(output) != "-":
