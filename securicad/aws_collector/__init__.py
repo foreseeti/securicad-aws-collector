@@ -45,9 +45,7 @@ def collect(
     config: Dict[str, Any],
     include_inspector: bool = False,
     threads: Optional[int] = None,
-    raise_on_access_denied: bool = False,
 ) -> Dict[str, Any]:
-
     try:
         jsonschema.validate(instance=config, schema=schemas.get_config_schema())
     except ValidationError as e:
@@ -59,9 +57,7 @@ def collect(
     }
     account_ids = set()
     for account in config["accounts"]:
-        account_data = account_collector.get_account_data(
-            account, threads, raise_on_access_denied
-        )
+        account_data = account_collector.get_account_data(account, threads)
         if account_data is None:
             continue
         if "account_aliases" not in account_data:
@@ -74,13 +70,7 @@ def collect(
         log.info(
             f'Collecting AWS environment information of account "{account_data["account_id"]}", {account_data["account_aliases"]}'
         )
-        account_collector.collect(
-            account,
-            account_data,
-            include_inspector,
-            threads,
-            raise_on_access_denied,
-        )
+        account_collector.collect(account, account_data, include_inspector, threads)
         data["accounts"].append(account_data)
         account_ids.add(account_data["account_id"])
     if not data["accounts"]:
@@ -251,9 +241,7 @@ def main(
         init_logging(quiet, verbose)
         config_data = get_config_data(profile, access_key, secret_key, region, config)
         output_data = collect(
-            config=config_data,
-            include_inspector=inspector,
-            threads=threads,
+            config=config_data, include_inspector=inspector, threads=threads
         )
         utils.write_json(output_data, output)
         if str(output) != "-":

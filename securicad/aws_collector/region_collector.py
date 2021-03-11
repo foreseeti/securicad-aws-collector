@@ -36,23 +36,18 @@ def collect(
     region_data: Dict[str, Any],
     include_inspector: bool,
     threads: Optional[int],
-    raise_on_access_denied: bool,
 ) -> None:
     session = Session(
         aws_access_key_id=account["access_key"],
         aws_secret_access_key=account["secret_key"],
         region_name=region_data["region_name"],
     )
-    region_data.update(
-        get_region_data(session, include_inspector, threads, raise_on_access_denied)
-    )
+
+    region_data.update(get_region_data(session, include_inspector, threads))
 
 
 def get_region_data(
-    session: Session,
-    include_inspector: bool,
-    threads: Optional[int],
-    raise_on_access_denied: bool,
+    session: Session, include_inspector: bool, threads: Optional[int]
 ) -> Dict[str, Any]:
     client_lock: Lock = Lock()
     client_cache: Dict[str, BaseClient] = {}
@@ -690,7 +685,7 @@ def get_region_data(
 
     add_task(apigateway_get_usage_plans, "apigateway")
 
-    region_data = utils.execute_tasks(tasks, threads, raise_on_access_denied)
+    region_data = utils.execute_tasks(tasks, threads)
     if region_data is None:
         raise RuntimeError("utils.execute_tasks returned None")
     return region_data
