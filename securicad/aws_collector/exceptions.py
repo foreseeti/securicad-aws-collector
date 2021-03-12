@@ -31,3 +31,7 @@ class AwsCredentialsError(AwsCollectorError):
 
 class AwsRegionError(AwsCollectorError):
     pass
+
+
+class AwsRateLimitError(AwsCollectorError):
+    pass
