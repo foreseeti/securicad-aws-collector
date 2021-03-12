@@ -164,6 +164,7 @@ def collect(
             raise AwsCredentialsError("No valid AWS credentials found")
         log.info("Finished collecting AWS environment information")
 
+        # pylint: disable=protected-access
         _globals = botocore.client.ClientCreator._create_api_method.__globals__
         if "TOTAL_CALLS" in _globals:
             log.info(f"Total number of API calls: {_globals['TOTAL_CALLS']}")
