@@ -60,7 +60,7 @@ packaging==20.9
     #   build
 pathspec==0.8.1
     # via black
-pep517==0.9.1
+pep517==0.10.0
     # via build
 pkginfo==1.7.0
     # via twine
