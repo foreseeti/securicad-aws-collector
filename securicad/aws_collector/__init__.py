@@ -135,36 +135,40 @@ def collect(
     except ValidationError as e:
         raise AwsCollectorInputError(f"Invalid config file: {e.message}") from e
 
-    if limit_per_second or total_limit:
+    try:
         _patch_botocore(limit_per_second, total_limit)
 
-    data: Dict[str, Any] = {
-        PARSER_VERSION_FIELD: PARSER_VERSION,
-        "accounts": [],
-    }
-    account_ids = set()
-    for account in config["accounts"]:
-        account_data = account_collector.get_account_data(account, threads)
-        if account_data is None:
-            continue
-        if "account_aliases" not in account_data:
-            account_data["account_aliases"] = []
-        if account_data["account_id"] in account_ids:
-            log.warning(
-                f'Duplicate AWS Account "{account_data["account_id"]}", {account_data["account_aliases"]}'
+        data: Dict[str, Any] = {
+            PARSER_VERSION_FIELD: PARSER_VERSION,
+            "accounts": [],
+        }
+        account_ids = set()
+        for account in config["accounts"]:
+            account_data = account_collector.get_account_data(account, threads)
+            if account_data is None:
+                continue
+            if "account_aliases" not in account_data:
+                account_data["account_aliases"] = []
+            if account_data["account_id"] in account_ids:
+                log.warning(
+                    f'Duplicate AWS Account "{account_data["account_id"]}", {account_data["account_aliases"]}'
+                )
+                continue
+            log.info(
+                f'Collecting AWS environment information of account "{account_data["account_id"]}", {account_data["account_aliases"]}'
             )
-            continue
-        log.info(
-            f'Collecting AWS environment information of account "{account_data["account_id"]}", {account_data["account_aliases"]}'
-        )
-        account_collector.collect(account, account_data, include_inspector, threads)
-        data["accounts"].append(account_data)
-        account_ids.add(account_data["account_id"])
-    if not data["accounts"]:
-        raise AwsCredentialsError("No valid AWS credentials found")
-    log.info("Finished collecting AWS environment information")
+            account_collector.collect(account, account_data, include_inspector, threads)
+            data["accounts"].append(account_data)
+            account_ids.add(account_data["account_id"])
+        if not data["accounts"]:
+            raise AwsCredentialsError("No valid AWS credentials found")
+        log.info("Finished collecting AWS environment information")
 
-    _unpatch_botocore()
+        _globals = botocore.client.ClientCreator._create_api_method.__globals__
+        if "TOTAL_CALLS" in _globals:
+            log.info(f"Total number of API calls: {_globals['TOTAL_CALLS']}")
+    finally:
+        _unpatch_botocore()
 
     try:
         jsonschema.validate(instance=data, schema=schemas.get_data_schema())
