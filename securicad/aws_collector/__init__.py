@@ -168,6 +168,8 @@ def collect(
         _globals = botocore.client.ClientCreator._create_api_method.__globals__
         if "TOTAL_CALLS" in _globals:
             log.info(f"Total number of API calls: {_globals['TOTAL_CALLS']}")
+        else:
+            log.warning("Failed to get total number of API calls")
     finally:
         _unpatch_botocore()
 
