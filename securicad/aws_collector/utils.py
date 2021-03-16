@@ -78,6 +78,41 @@ CLIENT_CONFIG = Config(
 log = logging.getLogger("securicad-aws-collector")
 
 
+def get_credentials(account: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    credentials: Dict[str, str] = {
+        "aws_access_key_id": account["access_key"],
+        "aws_secret_access_key": account["secret_key"],
+    }
+    if "session_token" in account:
+        credentials["aws_session_token"] = account["session_token"]
+    if "role" in account:
+        session = Session(**credentials)
+        client = session.client("sts")
+        try:
+            role = client.assume_role(
+                RoleArn=account["role"], RoleSessionName="securicad"
+            )
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            message = e.response["Error"]["Message"]
+            if code in {
+                "InvalidClientTokenId",
+                "SignatureDoesNotMatch",
+                "AccessDenied",
+            }:
+                log.warning(message)
+                return None
+            raise
+        credentials["aws_access_key_id"] = role["Credentials"]["AccessKeyId"]
+        credentials["aws_secret_access_key"] = role["Credentials"]["SecretAccessKey"]
+        credentials["aws_session_token"] = role["Credentials"]["SessionToken"]
+    return credentials
+
+
+def is_valid_region(session: Session, region: str) -> bool:
+    return region in set(session.get_available_regions("ec2"))
+
+
 def get_client(
     session: Session, client_lock: Lock, client_cache: Dict[str, BaseClient]
 ) -> "ClientCallable":

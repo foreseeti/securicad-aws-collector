@@ -27,21 +27,13 @@ from securicad.aws_collector import utils
 log = logging.getLogger("securicad-aws-collector")
 
 
-def is_valid_region(session: Session, region: str) -> bool:
-    return region in set(session.get_available_regions("ec2"))
-
-
 def collect(
-    account: Dict[str, Any],
+    credentials: Dict[str, str],
     region_data: Dict[str, Any],
     include_inspector: bool,
     threads: Optional[int],
 ) -> None:
-    session = Session(
-        aws_access_key_id=account["access_key"],
-        aws_secret_access_key=account["secret_key"],
-        region_name=region_data["region_name"],
-    )
+    session = Session(**credentials, region_name=region_data["region_name"])
 
     region_data.update(get_region_data(session, include_inspector, threads))
 

@@ -37,6 +37,12 @@ CONFIG_SCHEMA: Dict[str, Any] = {
                 "secret_key": {
                     "$ref": "#/definitions/nonEmptyString",
                 },
+                "session_token": {
+                    "$ref": "#/definitions/nonEmptyString",
+                },
+                "role": {
+                    "$ref": "#/definitions/nonEmptyString",
+                },
                 "regions": {
                     "$ref": "#/definitions/nonEmptyStringArray",
                 },
