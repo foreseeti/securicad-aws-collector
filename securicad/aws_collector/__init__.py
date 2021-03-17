@@ -144,7 +144,10 @@ def collect(
         }
         account_ids = set()
         for account in config["accounts"]:
-            account_data = account_collector.get_account_data(account, threads)
+            credentials = utils.get_credentials(account)
+            if credentials is None:
+                continue
+            account_data = account_collector.get_account_data(credentials, threads)
             if account_data is None:
                 continue
             if "account_aliases" not in account_data:
@@ -157,7 +160,13 @@ def collect(
             log.info(
                 f'Collecting AWS environment information of account "{account_data["account_id"]}", {account_data["account_aliases"]}'
             )
-            account_collector.collect(account, account_data, include_inspector, threads)
+            account_collector.collect(
+                credentials,
+                account["regions"],
+                account_data,
+                include_inspector,
+                threads,
+            )
             data["accounts"].append(account_data)
             account_ids.add(account_data["account_id"])
         if not data["accounts"]:
@@ -207,11 +216,17 @@ def get_config_data(
     profile: Optional[str],
     access_key: Optional[str],
     secret_key: Optional[str],
+    session_token: Optional[str],
+    role: Optional[str],
     region: Optional[str],
     config: Optional[Path],
 ) -> Dict[str, Any]:
     def create_config(
-        _access_key: Optional[str], _secret_key: Optional[str], _region: Optional[str]
+        _access_key: Optional[str],
+        _secret_key: Optional[str],
+        _session_token: Optional[str],
+        _role: Optional[str],
+        _region: Optional[str],
     ) -> Dict[str, Any]:
         if not _access_key:
             raise AwsCollectorInputError("AWS Access Key has to be set")
@@ -219,7 +234,7 @@ def get_config_data(
             raise AwsCollectorInputError("AWS Secret Key has to be set")
         if not _region:
             raise AwsCollectorInputError("AWS Region has to be set")
-        return {
+        _config = {
             "accounts": [
                 {
                     "access_key": _access_key,
@@ -228,20 +243,33 @@ def get_config_data(
                 }
             ]
         }
+        if _session_token is not None:
+            _config["accounts"][0]["session_token"] = _session_token
+        if _role is not None:
+            _config["accounts"][0]["role"] = _role
+        return _config
 
     def create_config_from_session(session: Session) -> Dict[str, Any]:
         credentials = session.get_credentials()
-        if credentials:
-            _access_key = credentials.access_key
-            _secret_key = credentials.secret_key
-            _region = region or session.region_name
-        else:
+        if not credentials:
             raise AwsCollectorInputError("No AWS credentials found")
-        return create_config(_access_key, _secret_key, _region)
+        return create_config(
+            _access_key=credentials.access_key,
+            _secret_key=credentials.secret_key,
+            _session_token=credentials.token,
+            _role=role,
+            _region=region or session.region_name,
+        )
 
     try:
         if access_key or secret_key:
-            return create_config(access_key, secret_key, region)
+            return create_config(
+                _access_key=access_key,
+                _secret_key=secret_key,
+                _session_token=session_token,
+                _role=role,
+                _region=region,
+            )
         if profile:
             return create_config_from_session(Session(profile_name=profile))
         if config:
@@ -261,6 +289,12 @@ def main(
     ),
     secret_key: Optional[str] = typer.Option(
         None, "--secret-key", "-s", metavar="KEY", help="AWS Secret Key"
+    ),
+    session_token: Optional[str] = typer.Option(
+        None, "--session-token", "-S", metavar="TOKEN", help="AWS Session Token"
+    ),
+    role: Optional[str] = typer.Option(
+        None, "--role", "-R", metavar="ARN", help="AWS Role"
     ),
     region: Optional[str] = typer.Option(
         None, "--region", "-r", metavar="REGION", help="AWS Region"
@@ -335,19 +369,21 @@ def main(
     result in a JSON file.
 
     \b
-    There are three ways to specify AWS credentials and region:
-    1. With the command-line arguments --access-key, --secret-key, and --region
-    2. With a profile specified with the command-line argument --profile
-    3. With a config file specified with the command-line argument --config
+    There are four ways to specify AWS credentials and region:
+    1. Directly on the command-line
+    2. With a profile specified on the command-line
+    3. With a configuration file specified on the command-line
+    4. From the environment
 
     \b
-    If none of the above are specified, the default profile is used.
-    The command-line argument --region can also be used with profiles to
-    override their default region.
+    For details about specifying AWS credentials and region, see
+    https://github.com/foreseeti/securicad-aws-collector/blob/master/README.md
     """
     try:
         init_logging(quiet, verbose)
-        config_data = get_config_data(profile, access_key, secret_key, region, config)
+        config_data = get_config_data(
+            profile, access_key, secret_key, session_token, role, region, config
+        )
         output_data = collect(
             config=config_data,
             include_inspector=inspector,

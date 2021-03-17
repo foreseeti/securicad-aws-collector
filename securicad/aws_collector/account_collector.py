@@ -28,12 +28,9 @@ log = logging.getLogger("securicad-aws-collector")
 
 
 def get_account_data(
-    account: Dict[str, Any], threads: Optional[int]
+    credentials: Dict[str, str], threads: Optional[int]
 ) -> Optional[Dict[str, Any]]:
-    session = Session(
-        aws_access_key_id=account["access_key"],
-        aws_secret_access_key=account["secret_key"],
-    )
+    session = Session(**credentials)
 
     client_lock: Lock = Lock()
     client_cache: Dict[str, BaseClient] = {}
@@ -60,21 +57,19 @@ def get_account_data(
 
 
 def collect(
-    account: Dict[str, Any],
+    credentials: Dict[str, str],
+    regions: List[str],
     account_data: Dict[str, Any],
     include_inspector: bool,
     threads: Optional[int],
 ) -> None:
-    session = Session(
-        aws_access_key_id=account["access_key"],
-        aws_secret_access_key=account["secret_key"],
-    )
+    session = Session(**credentials)
 
     account_data["global"] = get_global_data(session, threads)
     account_data["regions"] = []
     region_names = set()
-    for region in account["regions"]:
-        if not region_collector.is_valid_region(session, region):
+    for region in regions:
+        if not utils.is_valid_region(session, region):
             log.warning(f'"{region}" is not a valid AWS Region')
             continue
         if region in region_names:
@@ -82,7 +77,7 @@ def collect(
             continue
         log.info(f'Collecting AWS environment information of region "{region}"')
         region_data = {"region_name": region}
-        region_collector.collect(account, region_data, include_inspector, threads)
+        region_collector.collect(credentials, region_data, include_inspector, threads)
         account_data["regions"].append(region_data)
         region_names.add(region)
     if not account_data["regions"]:
