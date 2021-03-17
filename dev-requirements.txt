@@ -32,8 +32,10 @@ docutils==0.16
     # via readme-renderer
 idna==2.10
     # via requests
-importlib-metadata==3.7.2
-    # via keyring
+importlib-metadata==3.7.3
+    # via
+    #   keyring
+    #   twine
 isort==5.7.0
     # via
     #   -r dev-requirements.in
@@ -99,7 +101,7 @@ toml==0.10.2
     #   pylint
 tqdm==4.59.0
     # via twine
-twine==3.3.0
+twine==3.4.1
     # via -r dev-requirements.in
 typed-ast==1.4.2
     # via
@@ -109,7 +111,7 @@ typing-extensions==3.7.4.3
     # via
     #   black
     #   mypy
-urllib3==1.26.3
+urllib3==1.26.4
     # via
     #   -c requirements.txt
     #   requests
@@ -119,6 +121,3 @@ wrapt==1.12.1
     # via astroid
 zipp==3.4.1
     # via importlib-metadata
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools
