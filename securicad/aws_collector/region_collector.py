@@ -194,6 +194,146 @@ def get_region_data(
 
     add_task(ec2_describe_volumes, "ec2")
 
+    def ec2_describe_transit_gateways() -> Tuple[List[str], Any]:
+        log.debug(
+            "Executing ec2 describe-transit-gateways, describe-transit-gateway-attachments, get-transit-gateway-attachment-propagations, describe-transit-gateway-peering-attachments, describe-transit-gateway-route-tables, search-transit-gateway-routes, get-transit-gateway-prefix-list-references, get-transit-gateway-route-table-associations, get-transit-gateway-route-table-propagations, describe-transit-gateway-vpc-attachments"
+        )
+
+        def get_attachments() -> Dict[str, Dict[str, Dict[str, Any]]]:
+            def get_attachment_propagations(attachment_id: str) -> List[Dict[str, Any]]:
+                return paginate(
+                    "ec2",
+                    "get_transit_gateway_attachment_propagations",
+                    key="TransitGatewayAttachmentPropagations",
+                    param={"TransitGatewayAttachmentId": attachment_id},
+                )
+
+            attachments = paginate(
+                "ec2",
+                "describe_transit_gateway_attachments",
+                key="TransitGatewayAttachments",
+            )
+            res: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            for attachment in attachments:
+                tgw_id = attachment["TransitGatewayId"]
+                attachment_id = attachment["TransitGatewayAttachmentId"]
+                attachment["Propagations"] = get_attachment_propagations(attachment_id)
+                if tgw_id not in res:
+                    res[tgw_id] = {}
+                res[tgw_id][attachment_id] = attachment
+            return res
+
+        def get_peering_attachments() -> Dict[str, Dict[str, Any]]:
+            peering_attachments = paginate(
+                "ec2",
+                "describe_transit_gateway_peering_attachments",
+                key="TransitGatewayPeeringAttachments",
+            )
+            res: Dict[str, Dict[str, Any]] = {}
+            for peering_attachment in peering_attachments:
+                attachment_id = peering_attachment["TransitGatewayAttachmentId"]
+                res[attachment_id] = peering_attachment
+            return res
+
+        def get_route_tables() -> Dict[str, Dict[str, Dict[str, Any]]]:
+            def get_routes(route_table_id: str) -> List[Dict[str, Any]]:
+                param = {
+                    "TransitGatewayRouteTableId": route_table_id,
+                    "Filters": [
+                        {
+                            "Name": "route-search.subnet-of-match",
+                            "Values": ["0.0.0.0/0", "::/0"],
+                        }
+                    ],
+                }
+                return unpaginated("ec2", "search_transit_gateway_routes", param=param)[
+                    "Routes"
+                ]
+
+            def get_prefix_list_references(route_table_id: str) -> List[Dict[str, Any]]:
+                return paginate(
+                    "ec2",
+                    "get_transit_gateway_prefix_list_references",
+                    key="TransitGatewayPrefixListReferences",
+                    param={"TransitGatewayRouteTableId": route_table_id},
+                )
+
+            def get_associations(route_table_id: str) -> List[Dict[str, Any]]:
+                return paginate(
+                    "ec2",
+                    "get_transit_gateway_route_table_associations",
+                    key="Associations",
+                    param={"TransitGatewayRouteTableId": route_table_id},
+                )
+
+            def get_propagations(route_table_id: str) -> List[Dict[str, Any]]:
+                return paginate(
+                    "ec2",
+                    "get_transit_gateway_route_table_propagations",
+                    key="TransitGatewayRouteTablePropagations",
+                    param={"TransitGatewayRouteTableId": route_table_id},
+                )
+
+            route_tables = paginate(
+                "ec2",
+                "describe_transit_gateway_route_tables",
+                key="TransitGatewayRouteTables",
+            )
+            res: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            for route_table in route_tables:
+                tgw_id = route_table["TransitGatewayId"]
+                route_table_id = route_table["TransitGatewayRouteTableId"]
+                route_table["Routes"] = get_routes(route_table_id)
+                route_table["PrefixListReferences"] = get_prefix_list_references(
+                    route_table_id
+                )
+                route_table["Associations"] = get_associations(route_table_id)
+                route_table["Propagations"] = get_propagations(route_table_id)
+                if tgw_id not in res:
+                    res[tgw_id] = {}
+                res[tgw_id][route_table_id] = route_table
+            return res
+
+        def get_vpc_attachments() -> Dict[str, Dict[str, Dict[str, Any]]]:
+            vpc_attachments = paginate(
+                "ec2",
+                "describe_transit_gateway_vpc_attachments",
+                key="TransitGatewayVpcAttachments",
+            )
+            res: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            for vpc_attachment in vpc_attachments:
+                tgw_id = vpc_attachment["TransitGatewayId"]
+                attachment_id = vpc_attachment["TransitGatewayAttachmentId"]
+                if tgw_id not in res:
+                    res[tgw_id] = {}
+                res[tgw_id][attachment_id] = vpc_attachment
+            return res
+
+        transit_gateways = paginate(
+            "ec2", "describe_transit_gateways", key="TransitGateways"
+        )
+        attachments = get_attachments()
+        peering_attachments = get_peering_attachments()
+        route_tables = get_route_tables()
+        vpc_attachments = get_vpc_attachments()
+
+        for transit_gateway in transit_gateways:
+            tgw_id = transit_gateway["TransitGatewayId"]
+            transit_gateway["Attachments"] = list(attachments.get(tgw_id, {}).values())
+            transit_gateway["PeeringAttachments"] = [
+                peering_attachments[attachment_id]
+                for attachment_id in attachments.get(tgw_id, {})
+                if attachment_id in peering_attachments
+            ]
+            transit_gateway["RouteTables"] = list(route_tables.get(tgw_id, {}).values())
+            transit_gateway["VpcAttachments"] = list(
+                vpc_attachments.get(tgw_id, {}).values()
+            )
+
+        return ["ec2", "TransitGateways"], transit_gateways
+
+    add_task(ec2_describe_transit_gateways, "ec2")
+
     def elb_describe_load_balancers() -> Tuple[List[str], Any]:
         log.debug("Executing elb describe-load-balancers")
         return ["elb", "LoadBalancerDescriptions"], paginate(
