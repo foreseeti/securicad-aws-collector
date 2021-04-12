@@ -817,6 +817,53 @@ def get_region_data(
 
     add_task(apigateway_get_usage_plans, "apigateway")
 
+    def apigatewayv2_get_apis() -> Tuple[List[str], Any]:
+        log.debug(
+            "Executing apigatewayv2 get-apis, get-routes, get-integrations, get-authorizers"
+        )
+
+        def get_apis() -> List[Dict[str, Any]]:
+            return paginate(
+                "apigatewayv2",
+                "get_apis",
+                key="Items",
+            )
+
+        def get_routes(api_id: str) -> List[Dict[str, Any]]:
+            return paginate(
+                "apigatewayv2",
+                "get_routes",
+                key="Items",
+                param={"ApiId": api_id},
+            )
+
+        def get_authorizers(api_id: str) -> List[Dict[str, Any]]:
+            return paginate(
+                "apigatewayv2",
+                "get_authorizers",
+                key="Items",
+                param={"ApiId": api_id},
+            )
+
+        def get_integrations(api_id: str) -> List[Dict[str, Any]]:
+            return paginate(
+                "apigatewayv2",
+                "get_integrations",
+                key="Items",
+                param={"ApiId": api_id},
+            )
+
+        apis = get_apis()
+        for api in apis:
+            api_id = api["ApiId"]
+            api["Routes"] = get_routes(api_id)
+            api["Authorizers"] = get_authorizers(api_id)
+            api["Integrations"] = get_integrations(api_id)
+
+        return ["apigatewayv2", "Apis"], apis
+
+    add_task(apigatewayv2_get_apis, "apigatewayv2")
+
     region_data = utils.execute_tasks(tasks, threads)
     if region_data is None:
         raise RuntimeError("utils.execute_tasks returned None")

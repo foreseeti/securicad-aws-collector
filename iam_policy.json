@@ -109,6 +109,18 @@
         "arn:aws:apigateway:*::/usageplans",
         "arn:aws:apigateway:*::/usageplans/*/keys"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET"
+      ],
+      "Resource": [
+        "arn:aws:apigateway:*::/apis",
+        "arn:aws:apigateway:*::/apis/*/authorizers",
+        "arn:aws:apigateway:*::/apis/*/integrations",
+        "arn:aws:apigateway:*::/apis/*/routes"
+      ]
     }
   ]
 }
