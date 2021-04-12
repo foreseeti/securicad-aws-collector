@@ -107,7 +107,11 @@
         "arn:aws:apigateway:*::/restapis/*/resources/*",
         "arn:aws:apigateway:*::/restapis/*/requestvalidators",
         "arn:aws:apigateway:*::/usageplans",
-        "arn:aws:apigateway:*::/usageplans/*/keys"
+        "arn:aws:apigateway:*::/usageplans/*/keys",
+        "arn:aws:apigateway:*::/apis",
+        "arn:aws:apigateway:*::/apis/*/authorizers",
+        "arn:aws:apigateway:*::/apis/*/integrations",
+        "arn:aws:apigateway:*::/apis/*/routes"
       ]
     }
   ]
