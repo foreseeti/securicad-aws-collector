@@ -201,17 +201,31 @@ def get_region_data(
 
         def get_attachments() -> Dict[str, Dict[str, Dict[str, Any]]]:
             def get_attachment_propagations(attachment_id: str) -> List[Dict[str, Any]]:
-                return paginate(
-                    "ec2",
-                    "get_transit_gateway_attachment_propagations",
-                    key="TransitGatewayAttachmentPropagations",
-                    param={"TransitGatewayAttachmentId": attachment_id},
-                )
+                try:
+                    return paginate(
+                        "ec2",
+                        "get_transit_gateway_attachment_propagations",
+                        key="TransitGatewayAttachmentPropagations",
+                        param={"TransitGatewayAttachmentId": attachment_id},
+                    )
+                except ClientError as e:
+                    if (
+                        e.response["Error"]["Code"]
+                        != "InvalidTransitGatewayAttachmentID.NotFound"
+                    ):
+                        raise
+                    return []
 
             attachments = paginate(
                 "ec2",
                 "describe_transit_gateway_attachments",
                 key="TransitGatewayAttachments",
+                param={
+                    "Filters": [
+                        {"Name": "association.state", "Values": ["associated"]},
+                        {"Name": "state", "Values": ["available"]},
+                    ]
+                },
             )
             res: Dict[str, Dict[str, Dict[str, Any]]] = {}
             for attachment in attachments:
