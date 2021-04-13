@@ -32,7 +32,7 @@ docutils==0.17
     # via readme-renderer
 idna==2.10
     # via requests
-importlib-metadata==3.10.0
+importlib-metadata==3.10.1
     # via
     #   keyring
     #   twine
