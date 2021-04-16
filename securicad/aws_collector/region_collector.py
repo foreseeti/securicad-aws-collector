@@ -362,12 +362,17 @@ def get_region_data(
         )
 
         def get_rules(listener_arn: str) -> List[Dict[str, Any]]:
-            return paginate(
-                "elbv2",
-                "describe_rules",
-                key="Rules",
-                param={"ListenerArn": listener_arn},
-            )
+            try:
+                return paginate(
+                    "elbv2",
+                    "describe_rules",
+                    key="Rules",
+                    param={"ListenerArn": listener_arn},
+                )
+            except ClientError as e:
+                if e.response["Error"]["Code"] != "ListenerNotFoundException":
+                    raise
+            return []
 
         def get_listeners(load_balancer_arn: str) -> List[Dict[str, Any]]:
             listeners = paginate(
